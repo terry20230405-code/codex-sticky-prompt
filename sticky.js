@@ -2,7 +2,7 @@
   'use strict';
 
   const GLOBAL_KEY = '__codexStickyPrompt';
-  const VERSION = '0.1.29';
+  const VERSION = '0.1.30';
   const STORAGE_KEY = 'codex-sticky-prompt-enabled';
   const SCROLLER_SELECTOR = '.thread-scroll-container';
   const UNIT_SELECTOR = '[data-content-search-unit-key]';
@@ -12,9 +12,6 @@
   const FILE_PILL_SELECTOR = '[data-composer-attachment-pill]';
   const SUMMARY_TOGGLE_SELECTOR = 'button[aria-label="切换置顶摘要"], ' +
     'button[aria-label="Toggle pinned summary"]';
-  const ANCHOR_NAME = '--codex-sticky-prompt-source';
-  const nativeAnchorPositioning = Boolean(globalThis.CSS?.supports?.('left', `anchor(${ANCHOR_NAME} left)`) &&
-    globalThis.CSS?.supports?.('width', `min(748px, anchor-size(${ANCHOR_NAME} width))`));
   const PIN_PX = 0.5;
   const RELEASE_PX = 8;
   const SWITCH_MS = 220;
@@ -185,7 +182,6 @@
 
   const host = document.createElement('div');
   host.id = 'codex-sticky-prompt-host';
-  if (nativeAnchorPositioning) host.style.positionAnchor = ANCHOR_NAME;
   host.setAttribute('aria-label', '当前提问');
   const button = document.createElement('button');
   button.id = 'codex-sticky-prompt-button';
@@ -271,13 +267,9 @@
   let layoutTimer = 0;
   let layoutFrame = 0;
   let layoutAnchor = null;
-  let previousAnchorName = null;
-  let layoutAnchorLeft = null;
   let layoutAnchorTop = null;
-  let layoutAnchorWidth = null;
   let layoutScrollerTop = null;
   let selectedAnchorOffset = null;
-  let lastHostWidth = null;
   let imageSources = [];
   let sourceImages = [];
   let currentImageIndex = 0;
@@ -695,32 +687,14 @@
     return { left, width, clip };
   }
 
-  function setLayoutAnchor(element) {
-    if (layoutAnchor !== element) {
-      if (nativeAnchorPositioning && layoutAnchor) {
-        layoutAnchor.style.anchorName = previousAnchorName ?? '';
-      }
-      layoutAnchor = element;
-      previousAnchorName = element?.style.anchorName ?? null;
-    }
-    if (nativeAnchorPositioning && element && element.style.anchorName !== ANCHOR_NAME) {
-      element.style.anchorName = ANCHOR_NAME;
-    }
-  }
-
   function positionHost(rect, contentRect, updateMask = false) {
     const { left, width, clip } = promptGeometry(rect, contentRect);
-    const nextLeft = nativeAnchorPositioning ? `anchor(${ANCHOR_NAME} left)` : `${left}px`;
-    const nextWidth = nativeAnchorPositioning ?
-      `min(748px, anchor-size(${ANCHOR_NAME} width))` : `${width}px`;
-    const widthChanged = lastHostWidth === null || Math.abs(width - lastHostWidth) > 0.5;
-    if (host.style.left !== nextLeft) host.style.left = nextLeft;
-    if (host.style.top !== `${rect.top}px`) host.style.top = `${rect.top}px`;
-    if (host.style.width !== nextWidth) host.style.width = nextWidth;
-    if (host.style.clipPath !== clip) host.style.clipPath = clip;
-    layoutAnchorLeft = contentRect.left;
-    layoutAnchorWidth = contentRect.width;
-    lastHostWidth = width;
+    const nextWidth = `${width}px`;
+    const widthChanged = host.style.width !== nextWidth;
+    host.style.left = `${left}px`;
+    host.style.top = `${rect.top}px`;
+    host.style.width = nextWidth;
+    host.style.clipPath = clip;
     if (updateMask && widthChanged) syncScrollerMask();
     if (updateMask && zoom.hasAttribute('data-visible')) positionZoom();
   }
@@ -733,15 +707,14 @@
     }
     const rect = scroller.getBoundingClientRect();
     const contentRect = layoutAnchor.getBoundingClientRect();
-    const { clip } = promptGeometry(rect, contentRect);
+    const { left, width, clip } = promptGeometry(rect, contentRect);
     const changed = Math.abs(rect.top - layoutScrollerTop) > 0.5 ||
         Math.abs(contentRect.top - layoutAnchorTop) > 0.5 ||
-        Math.abs(contentRect.left - layoutAnchorLeft) > 0.5 ||
-        Math.abs(contentRect.width - layoutAnchorWidth) > 0.5 ||
+        Math.abs(left - parseFloat(host.style.left)) > 0.5 ||
+        Math.abs(width - parseFloat(host.style.width)) > 0.5 ||
         host.style.clipPath !== clip ||
         Math.abs(scroller.scrollTop - lastScrollTop) > 0.5;
     if (!changed) return false;
-    setLayoutAnchor(layoutAnchor);
     positionHost(rect, contentRect, true);
     layoutAnchorTop = contentRect.top;
     layoutScrollerTop = rect.top;
@@ -781,13 +754,10 @@
     layoutTimer = 0;
     if (layoutFrame) cancelAnimationFrame(layoutFrame);
     layoutFrame = 0;
-    setLayoutAnchor(null);
-    layoutAnchorLeft = null;
+    layoutAnchor = null;
     layoutAnchorTop = null;
-    layoutAnchorWidth = null;
     layoutScrollerTop = null;
     selectedAnchorOffset = null;
-    lastHostWidth = null;
   }
 
   function hide() {
@@ -881,7 +851,7 @@
     const animateSwitch = currentKey !== null && currentKey !== chosen.key &&
       host.hasAttribute('data-visible');
     // The user bubble's full-width row shares its left edge with the reply's duration label.
-    setLayoutAnchor(chosen.bubble?.parentElement ?? chosen.content);
+    layoutAnchor = chosen.bubble?.parentElement ?? chosen.content;
     const contentRect = layoutAnchor.getBoundingClientRect();
     layoutAnchorTop = contentRect.top;
     layoutScrollerTop = rect.top;
