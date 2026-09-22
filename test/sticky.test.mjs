@@ -7,6 +7,7 @@ const source = await fs.readFile(new URL('../sticky.js', import.meta.url), 'utf8
 
 function createFixture({ animate = false, reduceMotion = false } = {}) {
   const dom = new JSDOM(`<!doctype html><html><head></head><body>
+    <div class="sidebar-item"><div role="presentation"><button aria-label="聊天操作">Sidebar menu</button></div></div>
     <div class="ms-auto"><button class="button-toolbar text-tertiary aspect-square not-disabled:not-aria-disabled:hover:bg-primary-ghost-hover" aria-label="聊天操作">Menu</button></div>
     <div class="thread-scroll-container">
       <div data-content-search-unit-key="first"><div data-user-message-bubble>First question\nwith detail</div></div>
@@ -86,6 +87,21 @@ test('pins the nearest preceding prompt, switches, and jumps back', async () => 
     await nextFrame();
     assert.equal(host.hasAttribute('data-visible'), false);
     assert.equal(scroller.classList.contains('codex-sticky-prompt-masked'), false);
+  } finally {
+    window.__codexStickyPrompt?.destroy();
+    window.close();
+  }
+});
+
+test('places the toggle beside the chat toolbar action, not the sidebar action', async () => {
+  const { window } = createFixture();
+  try {
+    await nextFrame();
+    const toggle = window.document.querySelector('#codex-sticky-prompt-toggle');
+    const toolbarAction = window.document.querySelector('.ms-auto > button[aria-label="聊天操作"]');
+    assert.equal(toggle.parentElement, toolbarAction.parentElement);
+    assert.equal(toggle.nextElementSibling, toolbarAction);
+    assert.equal(toggle.classList.contains('button-toolbar'), true);
   } finally {
     window.__codexStickyPrompt?.destroy();
     window.close();

@@ -2,7 +2,7 @@
   'use strict';
 
   const GLOBAL_KEY = '__codexStickyPrompt';
-  const VERSION = '0.1.19';
+  const VERSION = '0.1.20';
   const STORAGE_KEY = 'codex-sticky-prompt-enabled';
   const SCROLLER_SELECTOR = '.thread-scroll-container';
   const UNIT_SELECTOR = '[data-content-search-unit-key]';
@@ -385,10 +385,13 @@
   }
 
   function ensureToggle() {
-    const action = (toolbarAction?.isConnected ? toolbarAction : null) ??
-      document.querySelector('button[aria-label="聊天操作"]') ??
+    const inChatToolbar = (candidate) => candidate?.matches('button.button-toolbar') &&
+      candidate.parentElement?.classList.contains('ms-auto');
+    const action = (inChatToolbar(toolbarAction) && toolbarAction.isConnected ? toolbarAction : null) ??
+      [...document.querySelectorAll('button.button-toolbar[aria-label="聊天操作"]')]
+        .find(inChatToolbar) ??
       [...document.querySelectorAll('button.button-toolbar[aria-haspopup="menu"]')]
-        .find((candidate) => candidate.parentElement?.classList.contains('ms-auto'));
+        .find(inChatToolbar);
     toolbarAction = action ?? null;
     if (!action?.parentElement) {
       toggle.remove();
