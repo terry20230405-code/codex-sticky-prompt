@@ -136,8 +136,9 @@ test('realigns a pinned prompt when the view moves without a scroll event', asyn
     anchor.getBoundingClientRect = () => ({ left: 230, right: 650, width: 420, top: 70 });
     scroller.getBoundingClientRect = () => ({ top: 120, left: 250, right: 700, width: 450, height: 600 });
     await new Promise((resolve) => setTimeout(resolve, 180));
-    assert.equal(host.style.left, '268px');
-    assert.equal(host.style.width, '414px');
+    assert.equal(host.style.left, '230px');
+    assert.equal(host.style.width, '420px');
+    assert.equal(host.style.clipPath, 'inset(0px 0px 0px 20px)');
   } finally {
     window.__codexStickyPrompt?.destroy();
     window.close();

@@ -2,7 +2,7 @@
   'use strict';
 
   const GLOBAL_KEY = '__codexStickyPrompt';
-  const VERSION = '0.1.25';
+  const VERSION = '0.1.26';
   const STORAGE_KEY = 'codex-sticky-prompt-enabled';
   const SCROLLER_SELECTOR = '.thread-scroll-container';
   const UNIT_SELECTOR = '[data-content-search-unit-key]';
@@ -675,12 +675,13 @@
   }
 
   function promptGeometry(viewportRect, contentRect) {
-    const availableWidth = Math.max(0, viewportRect.width - 36);
-    const width = Math.min(748, availableWidth,
-      contentRect.width > 0 ? contentRect.width : availableWidth);
-    const minLeft = viewportRect.left + 18;
-    const maxLeft = Math.max(minLeft, viewportRect.right - 18 - width);
-    return { left: Math.min(Math.max(contentRect.left, minLeft), maxLeft), width };
+    const width = Math.min(748, contentRect.width > 0 ? contentRect.width :
+      Math.max(0, viewportRect.width - 36));
+    const left = contentRect.width > 0 ? contentRect.left : viewportRect.left + 18;
+    const clipLeft = Math.max(0, viewportRect.left - left);
+    const clipRight = Math.max(0, left + width - viewportRect.right);
+    const clip = clipLeft || clipRight ? `inset(0px ${clipRight}px 0px ${clipLeft}px)` : 'none';
+    return { left, width, clip };
   }
 
   function layoutChanged() {
@@ -688,11 +689,12 @@
     if (!scroller.isConnected || !layoutAnchor.isConnected) return true;
     const rect = scroller.getBoundingClientRect();
     const contentRect = layoutAnchor.getBoundingClientRect();
-    const { left, width } = promptGeometry(rect, contentRect);
+    const { left, width, clip } = promptGeometry(rect, contentRect);
     return Math.abs(rect.top - layoutScrollerTop) > 0.5 ||
         Math.abs(contentRect.top - layoutAnchorTop) > 0.5 ||
         Math.abs(left - parseFloat(host.style.left)) > 0.5 ||
         Math.abs(width - parseFloat(host.style.width)) > 0.5 ||
+        host.style.clipPath !== clip ||
         Math.abs(scroller.scrollTop - lastScrollTop) > 0.5;
   }
 
@@ -828,10 +830,11 @@
     const contentRect = layoutAnchor.getBoundingClientRect();
     layoutAnchorTop = contentRect.top;
     layoutScrollerTop = rect.top;
-    const { left, width } = promptGeometry(rect, contentRect);
+    const { left, width, clip } = promptGeometry(rect, contentRect);
     host.style.left = `${left}px`;
     host.style.top = `${rect.top}px`;
     host.style.width = `${width}px`;
+    host.style.clipPath = clip;
     setPromptContent(text, images, imageElements, chosen.key, animateSwitch, scrollDirection);
     currentKey = chosen.key;
     currentUnit = chosen.unit;
