@@ -1,4 +1,7 @@
-﻿param([switch]$StartMenuOnly)
+﻿param(
+    [switch]$StartMenuOnly,
+    [string]$ShortcutDirectory
+)
 
 $ErrorActionPreference = 'Stop'
 $powershell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -6,11 +9,25 @@ if (-not (Test-Path -LiteralPath $powershell)) { throw "未找到 Windows PowerS
 $package = Get-AppxPackage -Name 'OpenAI.Codex' | Sort-Object Version -Descending | Select-Object -First 1
 if (-not $package) { throw '未找到 Codex 桌面端。' }
 $appExe = Join-Path $package.InstallLocation 'app\ChatGPT.exe'
+if (-not (Test-Path -LiteralPath $appExe)) { throw "未找到 Codex 可执行文件：$appExe" }
+$node = (Get-Command node -ErrorAction SilentlyContinue).Source
+if (-not $node -or -not (Test-Path -LiteralPath $node)) {
+    throw '未找到 Node.js。请先安装 22 或更新版本，并重新打开 PowerShell。'
+}
+$nodeVersion = & $node --version
+$versionMatch = [regex]::Match($nodeVersion, '^v(?<major>\d+)\.')
+if ($LASTEXITCODE -ne 0 -or -not $versionMatch.Success -or [int]$versionMatch.Groups['major'].Value -lt 22) {
+    throw "需要 Node.js 22 或更新版本，当前版本：$nodeVersion"
+}
 $startScript = Join-Path $PSScriptRoot 'Start-CodexStickyPrompt.ps1'
-$arguments = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $startScript + '" -ShowDialog'
-$links = @((Join-Path ([Environment]::GetFolderPath('Programs')) 'Codex 吸顶版.lnk'))
-if (-not $StartMenuOnly) {
-    $links += Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'Codex 吸顶版.lnk'
+$arguments = '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $startScript + '" -ShowDialog -NodePath "' + $node + '"'
+if ($ShortcutDirectory) {
+    $links = @((Join-Path $ShortcutDirectory 'Codex 吸顶版.lnk'))
+} else {
+    $links = @((Join-Path ([Environment]::GetFolderPath('Programs')) 'Codex 吸顶版.lnk'))
+    if (-not $StartMenuOnly) {
+        $links += Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'Codex 吸顶版.lnk'
+    }
 }
 $shell = New-Object -ComObject WScript.Shell
 foreach ($link in $links) {

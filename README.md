@@ -4,13 +4,19 @@
 
 当前适配基于 Windows Codex `26.915.4065.0` 的界面标记。功能只操作本地窗口中的 DOM，不调用模型或上传聊天内容，不产生额外 token 用量。
 
-## 使用
+## 安装和使用
 
-需要 Node.js 22 或更新版本。**只需运行一次**下面的安装命令，即可在桌面和开始菜单创建“Codex 吸顶版”快捷方式：
+仅支持 Windows。先安装[官方桌面应用](https://learn.chatgpt.com/docs/windows/windows-app)和 Node.js 22 或更新版本，并确认在 PowerShell 中运行 `node --version` 能看到版本号。
+
+从本仓库选择 **Code → Download ZIP**（或使用 `git clone`），将文件解压到可写、准备长期保留的文件夹，例如“文档”。不要在 ZIP 内直接运行，也不要在创建快捷方式后移动或删除这个文件夹。
+
+在解压后的文件夹打开 PowerShell，**只需运行一次**下面的安装命令，即可在桌面和开始菜单创建“Codex 吸顶版”快捷方式：
 
 ```powershell
-& .\Install-CodexStickyShortcut.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CodexStickyShortcut.ps1
 ```
+
+这条命令只为本次安装进程放宽脚本执行策略，不更改系统设置。安装脚本会先检查 Codex 安装位置和 Node.js 版本；正常使用无需运行 `npm install`。
 
 以后点击“Codex 吸顶版”图标，就会自动启动 Codex 和吸顶注入器，无需手动运行脚本。原来的官方 Codex 图标仍按原样启动；请改用新图标。首次切换前请正常结束正在运行的 Codex 任务并退出 Codex。
 
@@ -21,7 +27,7 @@
 也可以在此文件夹打开 PowerShell，直接运行：
 
 ```powershell
-& .\Start-CodexStickyPrompt.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Start-CodexStickyPrompt.ps1
 ```
 
 脚本会启动官方 Codex 应用并在本机回环地址开启调试端口，然后启动吸顶注入器。如果 Codex 正在运行且没有调试端口，脚本只提示你稍后退出再运行，不会强制关闭应用。
@@ -37,7 +43,7 @@ node .\injector.mjs --probe --port 19177
 关闭吸顶功能，无需退出 Codex：
 
 ```powershell
-& .\Stop-CodexStickyPrompt.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Stop-CodexStickyPrompt.ps1
 ```
 
 每次完整退出并重新打开 Codex 后，请使用“Codex 吸顶版”图标进入，功能会自动生效。注入器在应用关闭后会自行退出。运行日志保存在 `.runtime` 文件夹，不记录聊天内容。

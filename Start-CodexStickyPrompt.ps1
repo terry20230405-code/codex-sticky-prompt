@@ -1,7 +1,8 @@
 ﻿param(
     [ValidateRange(1024, 65535)]
     [int]$Port = 19177,
-    [switch]$ShowDialog
+    [switch]$ShowDialog,
+    [string]$NodePath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,7 +22,15 @@ $package = Get-AppxPackage -Name 'OpenAI.Codex' | Sort-Object Version -Descendin
 if (-not $package) { throw '未找到通过 Windows 安装的 Codex 桌面端。' }
 $appExe = Join-Path $package.InstallLocation 'app\ChatGPT.exe'
 if (-not (Test-Path -LiteralPath $appExe)) { throw "未找到 Codex 可执行文件：$appExe" }
-$node = (Get-Command node -ErrorAction Stop).Source
+$node = if ($NodePath) { $NodePath } else { (Get-Command node -ErrorAction SilentlyContinue).Source }
+if (-not $node -or -not (Test-Path -LiteralPath $node)) {
+    throw '未找到 Node.js。请安装 22 或更新版本，并重新创建快捷方式。'
+}
+$nodeVersion = & $node --version
+$versionMatch = [regex]::Match($nodeVersion, '^v(?<major>\d+)\.')
+if ($LASTEXITCODE -ne 0 -or -not $versionMatch.Success -or [int]$versionMatch.Groups['major'].Value -lt 22) {
+    throw "需要 Node.js 22 或更新版本，当前版本：$nodeVersion"
+}
 $injector = Join-Path $PSScriptRoot 'injector.mjs'
 $runtime = Join-Path $PSScriptRoot '.runtime'
 New-Item -ItemType Directory -Path $runtime -Force | Out-Null
