@@ -2,7 +2,7 @@
   'use strict';
 
   const GLOBAL_KEY = '__codexStickyPrompt';
-  const VERSION = '0.1.20';
+  const VERSION = '0.1.21';
   const STORAGE_KEY = 'codex-sticky-prompt-enabled';
   const SCROLLER_SELECTOR = '.thread-scroll-container';
   const UNIT_SELECTOR = '[data-content-search-unit-key]';
@@ -16,6 +16,7 @@
   const ZOOM_DELAY_MS = 120;
   const ZOOM_LEAVE_MS = 220;
   const VIRTUALIZATION_GRACE_MS = 160;
+  const LAYOUT_CHECK_MS = 80;
 
   const prior = window[GLOBAL_KEY];
   if (prior?.version === VERSION && prior.active) return;
@@ -261,6 +262,10 @@
   let unavailableTimer = 0;
   let unavailable = false;
   let maskHeight = null;
+  let layoutTimer = 0;
+  let layoutAnchor = null;
+  let layoutAnchorTop = null;
+  let layoutScrollerTop = null;
   let imageSources = [];
   let sourceImages = [];
   let currentImageIndex = 0;
@@ -668,7 +673,39 @@
     scroller.classList.add('codex-sticky-prompt-masked');
   }
 
+  function checkLayout() {
+    if (!active || !enabled || !scroller || !layoutAnchor || !host.hasAttribute('data-visible')) return;
+    if (!scroller.isConnected || !layoutAnchor.isConnected) {
+      schedule();
+      return;
+    }
+    const rect = scroller.getBoundingClientRect();
+    const contentRect = layoutAnchor.getBoundingClientRect();
+    const contentFits = contentRect.width > 0 &&
+      contentRect.left >= rect.left && contentRect.right <= rect.right;
+    const left = contentFits ? contentRect.left : rect.left + 18;
+    const width = Math.min(748, contentFits ? contentRect.width : rect.width - 36);
+    if (Math.abs(rect.top - layoutScrollerTop) > 0.5 ||
+        Math.abs(contentRect.top - layoutAnchorTop) > 0.5 ||
+        Math.abs(left - parseFloat(host.style.left)) > 0.5 ||
+        Math.abs(width - parseFloat(host.style.width)) > 0.5 ||
+        Math.abs(scroller.scrollTop - lastScrollTop) > 0.5) schedule();
+  }
+
+  function watchLayout() {
+    if (!layoutTimer) layoutTimer = setInterval(checkLayout, LAYOUT_CHECK_MS);
+  }
+
+  function stopLayoutWatch() {
+    clearInterval(layoutTimer);
+    layoutTimer = 0;
+    layoutAnchor = null;
+    layoutAnchorTop = null;
+    layoutScrollerTop = null;
+  }
+
   function hide() {
+    stopLayoutWatch();
     hideZoom();
     button.title = '点击返回原提问';
     stopSwitchAnimation();
@@ -751,7 +788,10 @@
     const animateSwitch = currentKey !== null && currentKey !== chosen.key &&
       host.hasAttribute('data-visible');
     // The user bubble's full-width row shares its left edge with the reply's duration label.
-    const contentRect = (chosen.bubble?.parentElement ?? chosen.content).getBoundingClientRect();
+    layoutAnchor = chosen.bubble?.parentElement ?? chosen.content;
+    const contentRect = layoutAnchor.getBoundingClientRect();
+    layoutAnchorTop = contentRect.top;
+    layoutScrollerTop = rect.top;
     const contentFits = contentRect && contentRect.width > 0 &&
       contentRect.left >= rect.left && contentRect.right <= rect.right;
     host.style.left = `${contentFits ? contentRect.left : rect.left + 18}px`;
@@ -768,6 +808,7 @@
       'var(--color-text-user-message, inherit)');
     host.setAttribute('data-visible', 'true');
     syncScrollerMask();
+    watchLayout();
     if (zoom.hasAttribute('data-visible')) positionZoom();
     if (switchAnimations.length) schedule();
   }
@@ -873,6 +914,7 @@
       if (frame) cancelAnimationFrame(frame);
       clearTimeout(emptyRowsTimer);
       clearTimeout(unavailableTimer);
+      stopLayoutWatch();
       hideZoom();
       mutationObserver.disconnect();
       resizeObserver?.disconnect();

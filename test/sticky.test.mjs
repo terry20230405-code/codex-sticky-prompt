@@ -108,6 +108,28 @@ test('places the toggle beside the chat toolbar action, not the sidebar action',
   }
 });
 
+test('realigns a pinned prompt when the view moves without a scroll event', async () => {
+  const { window, scroller, tops } = createFixture();
+  try {
+    tops.first = 70;
+    scroller.dispatchEvent(new window.Event('scroll'));
+    await nextFrame();
+    const host = window.document.querySelector('#codex-sticky-prompt-host');
+    assert.equal(host.style.left, '100px');
+    assert.equal(host.style.top, '100px');
+    const anchor = window.document.querySelector('[data-content-search-unit-key="first"] [data-user-message-bubble]').parentElement;
+    anchor.getBoundingClientRect = () => ({ left: 200, right: 700, width: 500, top: 70 });
+    scroller.getBoundingClientRect = () => ({ top: 120, left: 50, right: 850, width: 800, height: 600 });
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    assert.equal(host.style.left, '200px');
+    assert.equal(host.style.top, '120px');
+    assert.equal(host.style.width, '500px');
+  } finally {
+    window.__codexStickyPrompt?.destroy();
+    window.close();
+  }
+});
+
 test('reacts to changed messages and cleans up fully', async () => {
   const fixture = createFixture();
   const { window, scroller, tops } = fixture;
