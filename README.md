@@ -1,6 +1,6 @@
 # Codex 桌面端提问吸顶（Windows）
 
-在 Codex 对话里向下阅读长回复时，已经越过聊天区顶部的最近一条用户提问会显示为两行摘要。点击摘要可回到原提问。选择规则借鉴 [dsh-oil-sticky-prompt](https://github.com/oil-oil/dsh-oil-sticky-prompt)。
+在 Codex 对话里向下阅读长回复时，已经越过聊天区顶部的最近一条用户提问会显示为两行摘要。点击摘要可回到原提问。
 
 当前适配基于 Windows Codex `26.915.4065.0` 的界面标记。功能只操作本地窗口中的 DOM，不调用模型或上传聊天内容，不产生额外 token 用量。
 
@@ -54,6 +54,6 @@ node .\injector.mjs --probe --port 19177
 - 启动脚本会等待注入器实际连接成功，不再固定等待 1 秒；这不会延迟 Codex 窗口打开。
 - 这不是 OpenAI 官方插件接口。启动调试端口期间，本机其他进程理论上也可能连接到该端口；用完可运行停止脚本并正常退出 Codex。
 
-借鉴代码的 MIT 许可原文见 `NOTICE-DSH.txt`；本仓库其余代码尚未另行指定许可证。
+第三方许可声明见 `NOTICE-DSH.txt`；本仓库其余代码尚未另行指定许可证。
 
 如需在本地运行模拟测试：`npm install`，然后 `npm test`。正常使用吸顶功能不需要安装 npm 依赖。
