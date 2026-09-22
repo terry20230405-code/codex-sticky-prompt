@@ -9,6 +9,7 @@ function createFixture({ animate = false, reduceMotion = false, observeResize = 
   const dom = new JSDOM(`<!doctype html><html><head></head><body>
     <div class="sidebar-item"><div role="presentation"><button aria-label="聊天操作">Sidebar menu</button></div></div>
     <div class="ms-auto"><button class="button-toolbar text-tertiary aspect-square not-disabled:not-aria-disabled:hover:bg-primary-ghost-hover" aria-label="聊天操作">Menu</button></div>
+    <button aria-label="切换置顶摘要">Summary</button>
     <div class="thread-scroll-container">
       <div data-content-search-unit-key="first"><div data-user-message-bubble>First question\nwith detail</div></div>
       <div data-content-search-unit-key="second"><div data-user-message-bubble>Second question</div></div>
@@ -156,6 +157,13 @@ test('follows an animated view resize across multiple frames', async () => {
     const anchor = window.document.querySelector('[data-content-search-unit-key="first"] [data-user-message-bubble]').parentElement;
     let left = 108;
     anchor.getBoundingClientRect = () => ({ left, right: left + 500, width: 500, top: 70 });
+    const secondContent = window.document.querySelector('[data-content-search-unit-key="second"] [data-user-message-bubble]');
+    const originalSecondRect = secondContent.getBoundingClientRect;
+    let unrelatedRowMeasurements = 0;
+    secondContent.getBoundingClientRect = () => {
+      unrelatedRowMeasurements += 1;
+      return originalSecondRect();
+    };
     fixture.fireResize();
     assert.equal(host.style.left, '108px', 'resize notification updates the position immediately');
     const positions = new Set();
@@ -166,6 +174,26 @@ test('follows an animated view resize across multiple frames', async () => {
     }
     assert.ok(positions.size >= 6, `expected smooth updates, got ${positions.size} positions`);
     assert.equal(host.style.left, `${left}px`);
+    assert.equal(unrelatedRowMeasurements, 0, 'layout animation does not rescan unrelated prompts');
+  } finally {
+    window.__codexStickyPrompt?.destroy();
+    window.close();
+  }
+});
+
+test('starts following immediately when pinned summary is toggled', async () => {
+  const { window, scroller, tops } = createFixture();
+  try {
+    tops.first = 70;
+    scroller.dispatchEvent(new window.Event('scroll'));
+    await nextFrame();
+    const host = window.document.querySelector('#codex-sticky-prompt-host');
+    const anchor = window.document.querySelector('[data-content-search-unit-key="first"] [data-user-message-bubble]').parentElement;
+    window.document.querySelector('button[aria-label="切换置顶摘要"]').click();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    anchor.getBoundingClientRect = () => ({ left: 160, right: 760, width: 600, top: 70 });
+    await nextFrame();
+    assert.equal(host.style.left, '160px');
   } finally {
     window.__codexStickyPrompt?.destroy();
     window.close();

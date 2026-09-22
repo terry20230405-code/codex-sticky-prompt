@@ -2,7 +2,7 @@
   'use strict';
 
   const GLOBAL_KEY = '__codexStickyPrompt';
-  const VERSION = '0.1.26';
+  const VERSION = '0.1.28';
   const STORAGE_KEY = 'codex-sticky-prompt-enabled';
   const SCROLLER_SELECTOR = '.thread-scroll-container';
   const UNIT_SELECTOR = '[data-content-search-unit-key]';
@@ -10,6 +10,8 @@
   const ATTACHMENT_SELECTOR = '[aria-label="用户附件"], [aria-label="User attachment"], ' +
     '[aria-label="应用程序截图附件"], [aria-label="Appshot attachment"]';
   const FILE_PILL_SELECTOR = '[data-composer-attachment-pill]';
+  const SUMMARY_TOGGLE_SELECTOR = 'button[aria-label="切换置顶摘要"], ' +
+    'button[aria-label="Toggle pinned summary"]';
   const PIN_PX = 0.5;
   const RELEASE_PX = 8;
   const SWITCH_MS = 220;
@@ -267,6 +269,7 @@
   let layoutAnchor = null;
   let layoutAnchorTop = null;
   let layoutScrollerTop = null;
+  let selectedAnchorOffset = null;
   let imageSources = [];
   let sourceImages = [];
   let currentImageIndex = 0;
@@ -684,18 +687,40 @@
     return { left, width, clip };
   }
 
-  function layoutChanged() {
+  function positionHost(rect, contentRect, updateMask = false) {
+    const { left, width, clip } = promptGeometry(rect, contentRect);
+    const nextWidth = `${width}px`;
+    const widthChanged = host.style.width !== nextWidth;
+    host.style.left = `${left}px`;
+    host.style.top = `${rect.top}px`;
+    host.style.width = nextWidth;
+    host.style.clipPath = clip;
+    if (updateMask && widthChanged) syncScrollerMask();
+    if (updateMask && zoom.hasAttribute('data-visible')) positionZoom();
+  }
+
+  function updateLayout() {
     if (!active || !enabled || !scroller || !layoutAnchor || !host.hasAttribute('data-visible')) return false;
-    if (!scroller.isConnected || !layoutAnchor.isConnected) return true;
+    if (!scroller.isConnected || !layoutAnchor.isConnected) {
+      schedule();
+      return false;
+    }
     const rect = scroller.getBoundingClientRect();
     const contentRect = layoutAnchor.getBoundingClientRect();
     const { left, width, clip } = promptGeometry(rect, contentRect);
-    return Math.abs(rect.top - layoutScrollerTop) > 0.5 ||
+    const changed = Math.abs(rect.top - layoutScrollerTop) > 0.5 ||
         Math.abs(contentRect.top - layoutAnchorTop) > 0.5 ||
         Math.abs(left - parseFloat(host.style.left)) > 0.5 ||
         Math.abs(width - parseFloat(host.style.width)) > 0.5 ||
         host.style.clipPath !== clip ||
         Math.abs(scroller.scrollTop - lastScrollTop) > 0.5;
+    if (!changed) return false;
+    positionHost(rect, contentRect, true);
+    layoutAnchorTop = contentRect.top;
+    layoutScrollerTop = rect.top;
+    if (Math.abs(contentRect.top - rect.top - selectedAnchorOffset) > 0.5 ||
+        Math.abs(scroller.scrollTop - lastScrollTop) > 0.5) schedule();
+    return true;
   }
 
   function trackLayout() {
@@ -704,8 +729,7 @@
     const tick = () => {
       layoutFrame = 0;
       if (!active || !enabled || !host.hasAttribute('data-visible')) return;
-      if (layoutChanged()) {
-        refresh();
+      if (updateLayout()) {
         stableFrames = 0;
       } else {
         stableFrames += 1;
@@ -718,7 +742,7 @@
   }
 
   function checkLayout() {
-    if (layoutChanged()) trackLayout();
+    if (updateLayout()) trackLayout();
   }
 
   function watchLayout() {
@@ -733,6 +757,7 @@
     layoutAnchor = null;
     layoutAnchorTop = null;
     layoutScrollerTop = null;
+    selectedAnchorOffset = null;
   }
 
   function hide() {
@@ -777,7 +802,7 @@
       if (scroller && typeof ResizeObserver !== 'undefined') {
         resizeObserver = new ResizeObserver(() => {
           if (host.hasAttribute('data-visible')) {
-            refresh();
+            updateLayout();
             trackLayout();
           } else {
             schedule();
@@ -830,11 +855,8 @@
     const contentRect = layoutAnchor.getBoundingClientRect();
     layoutAnchorTop = contentRect.top;
     layoutScrollerTop = rect.top;
-    const { left, width, clip } = promptGeometry(rect, contentRect);
-    host.style.left = `${left}px`;
-    host.style.top = `${rect.top}px`;
-    host.style.width = `${width}px`;
-    host.style.clipPath = clip;
+    selectedAnchorOffset = contentRect.top - rect.top;
+    positionHost(rect, contentRect);
     setPromptContent(text, images, imageElements, chosen.key, animateSwitch, scrollDirection);
     currentKey = chosen.key;
     currentUnit = chosen.unit;
@@ -854,6 +876,12 @@
   function onScroll(event) {
     if (scroller && event.target instanceof Node &&
         (event.target === scroller || scroller.contains(event.target))) schedule();
+  }
+
+  function onViewToggleClick(event) {
+    if (event.target instanceof Element && event.target.closest(SUMMARY_TOGGLE_SELECTOR)) {
+      trackLayout();
+    }
   }
 
   function onClick() {
@@ -926,6 +954,7 @@
     attributeFilter: ['data-user-message-bubble', 'data-content-search-unit-key', 'data-composer-attachment-pill'],
   });
   document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+  document.addEventListener('click', onViewToggleClick, true);
   window.addEventListener('resize', schedule);
   window.addEventListener('storage', onStorage);
   button.addEventListener('click', onClick);
@@ -957,6 +986,7 @@
       mutationObserver.disconnect();
       resizeObserver?.disconnect();
       document.removeEventListener('scroll', onScroll, true);
+      document.removeEventListener('click', onViewToggleClick, true);
       window.removeEventListener('resize', schedule);
       window.removeEventListener('storage', onStorage);
       button.removeEventListener('click', onClick);
