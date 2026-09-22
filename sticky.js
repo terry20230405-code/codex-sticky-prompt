@@ -2,7 +2,7 @@
   'use strict';
 
   const GLOBAL_KEY = '__codexStickyPrompt';
-  const VERSION = '0.1.24';
+  const VERSION = '0.1.25';
   const STORAGE_KEY = 'codex-sticky-prompt-enabled';
   const SCROLLER_SELECTOR = '.thread-scroll-container';
   const UNIT_SELECTOR = '[data-content-search-unit-key]';
@@ -35,9 +35,6 @@
       justify-content: flex-start;
     }
     #codex-sticky-prompt-host[data-visible="true"] { display: flex; }
-    #codex-sticky-prompt-host.codex-sticky-prompt-reflowing {
-      transition: left 50ms linear, top 50ms linear;
-    }
     .thread-scroll-container.codex-sticky-prompt-masked {
       -webkit-mask-image: linear-gradient(to bottom, transparent 0px,
         transparent var(--codex-sticky-mask-clear), black var(--codex-sticky-mask-full));
@@ -176,7 +173,6 @@
       white-space: nowrap;
     }
     @media (prefers-reduced-motion: reduce) {
-      #codex-sticky-prompt-host.codex-sticky-prompt-reflowing { transition: none; }
       #codex-sticky-prompt-zoom { transition: none; transform: none; }
     }
   `;
@@ -702,7 +698,6 @@
 
   function trackLayout() {
     if (layoutFrame || !active || !enabled || !host.hasAttribute('data-visible')) return;
-    host.classList.add('codex-sticky-prompt-reflowing');
     let stableFrames = 0;
     const tick = () => {
       layoutFrame = 0;
@@ -715,8 +710,6 @@
       }
       if (active && enabled && host.hasAttribute('data-visible') && stableFrames < 10) {
         layoutFrame = requestAnimationFrame(tick);
-      } else {
-        host.classList.remove('codex-sticky-prompt-reflowing');
       }
     };
     layoutFrame = requestAnimationFrame(tick);
@@ -735,7 +728,6 @@
     layoutTimer = 0;
     if (layoutFrame) cancelAnimationFrame(layoutFrame);
     layoutFrame = 0;
-    host.classList.remove('codex-sticky-prompt-reflowing');
     layoutAnchor = null;
     layoutAnchorTop = null;
     layoutScrollerTop = null;
