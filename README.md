@@ -53,6 +53,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Stop-CodexStickyPrompt
 ## 实现与限制
 
 - 通过本地 Chromium DevTools Protocol 注入 `sticky.js`，不修改 Codex 安装包或会话文件。
+- 安装脚本目前通过 Windows 包名 `OpenAI.Codex` 查找应用，并已在 `26.915.4065.0` 验证；其他包名或界面版本尚未验证。
 - 只连接 `127.0.0.1` 上由当前 Codex 安装占用的调试端口。
 - 使用 Codex 当前版本的 `.thread-scroll-container`、`data-content-search-unit-key` 和 `data-user-message-bubble` 标记。Codex 更新后若标记变化，需要适配。
 - 图片和文件识别依赖当前界面的“用户附件”和 `data-composer-attachment-pill` 标记。图片预览复用当前页面已有的图片地址，不读取附件内容或上传数据。
