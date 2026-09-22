@@ -5,7 +5,7 @@ import { JSDOM } from 'jsdom';
 
 const source = await fs.readFile(new URL('../sticky.js', import.meta.url), 'utf8');
 
-function createFixture({ animate = false, reduceMotion = false } = {}) {
+function createFixture({ animate = false, reduceMotion = false, observeResize = false } = {}) {
   const dom = new JSDOM(`<!doctype html><html><head></head><body>
     <div class="sidebar-item"><div role="presentation"><button aria-label="聊天操作">Sidebar menu</button></div></div>
     <div class="ms-auto"><button class="button-toolbar text-tertiary aspect-square not-disabled:not-aria-disabled:hover:bg-primary-ghost-hover" aria-label="聊天操作">Menu</button></div>
@@ -34,6 +34,14 @@ function createFixture({ animate = false, reduceMotion = false } = {}) {
     left: 100, right: 700, width: 600,
   });
   window.matchMedia = () => ({ matches: reduceMotion });
+  let resizeCallback = null;
+  if (observeResize) {
+    window.ResizeObserver = class {
+      constructor(callback) { resizeCallback = callback; }
+      observe() {}
+      disconnect() {}
+    };
+  }
   const animationCalls = [];
   if (animate) {
     window.HTMLElement.prototype.animate = function (keyframes, options) {
@@ -45,7 +53,8 @@ function createFixture({ animate = false, reduceMotion = false } = {}) {
   first.scrollIntoView = () => { jumpedTo = 'first'; };
   second.scrollIntoView = () => { jumpedTo = 'second'; };
   window.eval(source);
-  return { window, scroller, tops, animationCalls, get jumpedTo() { return jumpedTo; } };
+  return { window, scroller, tops, animationCalls,
+    fireResize() { resizeCallback?.(); }, get jumpedTo() { return jumpedTo; } };
 }
 
 async function nextFrame() {
@@ -124,6 +133,38 @@ test('realigns a pinned prompt when the view moves without a scroll event', asyn
     assert.equal(host.style.left, '200px');
     assert.equal(host.style.top, '120px');
     assert.equal(host.style.width, '500px');
+    anchor.getBoundingClientRect = () => ({ left: 230, right: 650, width: 420, top: 70 });
+    scroller.getBoundingClientRect = () => ({ top: 120, left: 250, right: 700, width: 450, height: 600 });
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    assert.equal(host.style.left, '268px');
+    assert.equal(host.style.width, '414px');
+  } finally {
+    window.__codexStickyPrompt?.destroy();
+    window.close();
+  }
+});
+
+test('follows an animated view resize across multiple frames', async () => {
+  const fixture = createFixture({ observeResize: true });
+  const { window, scroller, tops } = fixture;
+  try {
+    tops.first = 70;
+    scroller.dispatchEvent(new window.Event('scroll'));
+    await nextFrame();
+    const host = window.document.querySelector('#codex-sticky-prompt-host');
+    const anchor = window.document.querySelector('[data-content-search-unit-key="first"] [data-user-message-bubble]').parentElement;
+    let left = 108;
+    anchor.getBoundingClientRect = () => ({ left, right: left + 500, width: 500, top: 70 });
+    fixture.fireResize();
+    assert.equal(host.style.left, '108px', 'resize notification updates the position immediately');
+    const positions = new Set();
+    for (let step = 0; step < 10; step += 1) {
+      left += 8;
+      await new Promise((resolve) => setTimeout(resolve, 22));
+      positions.add(host.style.left);
+    }
+    assert.ok(positions.size >= 6, `expected smooth updates, got ${positions.size} positions`);
+    assert.equal(host.style.left, `${left}px`);
   } finally {
     window.__codexStickyPrompt?.destroy();
     window.close();

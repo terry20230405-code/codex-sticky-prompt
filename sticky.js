@@ -2,7 +2,7 @@
   'use strict';
 
   const GLOBAL_KEY = '__codexStickyPrompt';
-  const VERSION = '0.1.21';
+  const VERSION = '0.1.24';
   const STORAGE_KEY = 'codex-sticky-prompt-enabled';
   const SCROLLER_SELECTOR = '.thread-scroll-container';
   const UNIT_SELECTOR = '[data-content-search-unit-key]';
@@ -35,6 +35,9 @@
       justify-content: flex-start;
     }
     #codex-sticky-prompt-host[data-visible="true"] { display: flex; }
+    #codex-sticky-prompt-host.codex-sticky-prompt-reflowing {
+      transition: left 50ms linear, top 50ms linear;
+    }
     .thread-scroll-container.codex-sticky-prompt-masked {
       -webkit-mask-image: linear-gradient(to bottom, transparent 0px,
         transparent var(--codex-sticky-mask-clear), black var(--codex-sticky-mask-full));
@@ -173,6 +176,7 @@
       white-space: nowrap;
     }
     @media (prefers-reduced-motion: reduce) {
+      #codex-sticky-prompt-host.codex-sticky-prompt-reflowing { transition: none; }
       #codex-sticky-prompt-zoom { transition: none; transform: none; }
     }
   `;
@@ -263,6 +267,7 @@
   let unavailable = false;
   let maskHeight = null;
   let layoutTimer = 0;
+  let layoutFrame = 0;
   let layoutAnchor = null;
   let layoutAnchorTop = null;
   let layoutScrollerTop = null;
@@ -673,23 +678,52 @@
     scroller.classList.add('codex-sticky-prompt-masked');
   }
 
-  function checkLayout() {
-    if (!active || !enabled || !scroller || !layoutAnchor || !host.hasAttribute('data-visible')) return;
-    if (!scroller.isConnected || !layoutAnchor.isConnected) {
-      schedule();
-      return;
-    }
+  function promptGeometry(viewportRect, contentRect) {
+    const availableWidth = Math.max(0, viewportRect.width - 36);
+    const width = Math.min(748, availableWidth,
+      contentRect.width > 0 ? contentRect.width : availableWidth);
+    const minLeft = viewportRect.left + 18;
+    const maxLeft = Math.max(minLeft, viewportRect.right - 18 - width);
+    return { left: Math.min(Math.max(contentRect.left, minLeft), maxLeft), width };
+  }
+
+  function layoutChanged() {
+    if (!active || !enabled || !scroller || !layoutAnchor || !host.hasAttribute('data-visible')) return false;
+    if (!scroller.isConnected || !layoutAnchor.isConnected) return true;
     const rect = scroller.getBoundingClientRect();
     const contentRect = layoutAnchor.getBoundingClientRect();
-    const contentFits = contentRect.width > 0 &&
-      contentRect.left >= rect.left && contentRect.right <= rect.right;
-    const left = contentFits ? contentRect.left : rect.left + 18;
-    const width = Math.min(748, contentFits ? contentRect.width : rect.width - 36);
-    if (Math.abs(rect.top - layoutScrollerTop) > 0.5 ||
+    const { left, width } = promptGeometry(rect, contentRect);
+    return Math.abs(rect.top - layoutScrollerTop) > 0.5 ||
         Math.abs(contentRect.top - layoutAnchorTop) > 0.5 ||
         Math.abs(left - parseFloat(host.style.left)) > 0.5 ||
         Math.abs(width - parseFloat(host.style.width)) > 0.5 ||
-        Math.abs(scroller.scrollTop - lastScrollTop) > 0.5) schedule();
+        Math.abs(scroller.scrollTop - lastScrollTop) > 0.5;
+  }
+
+  function trackLayout() {
+    if (layoutFrame || !active || !enabled || !host.hasAttribute('data-visible')) return;
+    host.classList.add('codex-sticky-prompt-reflowing');
+    let stableFrames = 0;
+    const tick = () => {
+      layoutFrame = 0;
+      if (!active || !enabled || !host.hasAttribute('data-visible')) return;
+      if (layoutChanged()) {
+        refresh();
+        stableFrames = 0;
+      } else {
+        stableFrames += 1;
+      }
+      if (active && enabled && host.hasAttribute('data-visible') && stableFrames < 10) {
+        layoutFrame = requestAnimationFrame(tick);
+      } else {
+        host.classList.remove('codex-sticky-prompt-reflowing');
+      }
+    };
+    layoutFrame = requestAnimationFrame(tick);
+  }
+
+  function checkLayout() {
+    if (layoutChanged()) trackLayout();
   }
 
   function watchLayout() {
@@ -699,6 +733,9 @@
   function stopLayoutWatch() {
     clearInterval(layoutTimer);
     layoutTimer = 0;
+    if (layoutFrame) cancelAnimationFrame(layoutFrame);
+    layoutFrame = 0;
+    host.classList.remove('codex-sticky-prompt-reflowing');
     layoutAnchor = null;
     layoutAnchorTop = null;
     layoutScrollerTop = null;
@@ -744,7 +781,14 @@
       lastScrollTop = scroller?.scrollTop ?? null;
       scrollDirection = 1;
       if (scroller && typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(schedule);
+        resizeObserver = new ResizeObserver(() => {
+          if (host.hasAttribute('data-visible')) {
+            refresh();
+            trackLayout();
+          } else {
+            schedule();
+          }
+        });
         resizeObserver.observe(scroller);
       }
     }
@@ -792,11 +836,10 @@
     const contentRect = layoutAnchor.getBoundingClientRect();
     layoutAnchorTop = contentRect.top;
     layoutScrollerTop = rect.top;
-    const contentFits = contentRect && contentRect.width > 0 &&
-      contentRect.left >= rect.left && contentRect.right <= rect.right;
-    host.style.left = `${contentFits ? contentRect.left : rect.left + 18}px`;
+    const { left, width } = promptGeometry(rect, contentRect);
+    host.style.left = `${left}px`;
     host.style.top = `${rect.top}px`;
-    host.style.width = `${Math.min(748, contentFits ? contentRect.width : rect.width - 36)}px`;
+    host.style.width = `${width}px`;
     setPromptContent(text, images, imageElements, chosen.key, animateSwitch, scrollDirection);
     currentKey = chosen.key;
     currentUnit = chosen.unit;
