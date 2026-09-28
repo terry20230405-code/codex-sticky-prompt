@@ -2,7 +2,7 @@
 
 在 Codex 对话里向下阅读长回复时，已经越过聊天区顶部的最近一条用户提问会显示为两行摘要。点击摘要可回到原提问。
 
-当前适配基于 Windows Codex `26.915.4065.0` 的界面标记。功能只操作本地窗口中的 DOM，不调用模型或上传聊天内容，不产生额外 token 用量。
+启动器不锁定 Codex 版本：每次启动都会读取当前安装的官方版本。版本发生变化时会重新完成注入自检并记录成功版本。功能只操作本地窗口中的 DOM，不调用模型或上传聊天内容，不产生额外 token 用量。
 
 ## 安装和使用
 
@@ -48,12 +48,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Stop-CodexStickyPrompt
 
 每次完整退出并重新打开 Codex 后，请使用“Codex 吸顶版”图标进入，功能会自动生效。注入器在应用关闭后会自行退出。运行日志保存在 `.runtime` 文件夹，不记录聊天内容。
 
+Microsoft Store 更新 Codex 后，官方程序有时会自行重启，并且不会保留吸顶版的启动参数。此时启动器会识别版本变化并提示；完成当前任务、完全退出 Codex，再打开“Codex 吸顶版”即可，无需修改快捷方式或重新安装。成功启动后，版本和自检结果会记录在 `.runtime/compatibility.json`。
+
 要移除新图标，运行 `Uninstall-CodexStickyShortcut.ps1`；原 Codex 图标不会受到影响。
 
 ## 实现与限制
 
 - 通过本地 Chromium DevTools Protocol 注入 `sticky.js`，不修改 Codex 安装包或会话文件。
-- 安装脚本目前通过 Windows 包名 `OpenAI.Codex` 查找应用，并已在 `26.915.4065.0` 验证；其他包名或界面版本尚未验证。
+- 安装脚本通过 Windows 包名 `OpenAI.Codex` 查找当前最新安装版本，不依赖固定安装路径或固定版本号。
 - 只连接 `127.0.0.1` 上由当前 Codex 安装占用的调试端口。
 - 使用 Codex 当前版本的 `.thread-scroll-container`、`data-content-search-unit-key` 和 `data-user-message-bubble` 标记。Codex 更新后若标记变化，需要适配。
 - 图片和文件识别依赖当前界面的“用户附件”和 `data-composer-attachment-pill` 标记。图片预览复用当前页面已有的图片地址，不读取附件内容或上传数据。

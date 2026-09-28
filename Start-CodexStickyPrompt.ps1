@@ -35,6 +35,17 @@ $injector = Join-Path $PSScriptRoot 'injector.mjs'
 $runtime = Join-Path $PSScriptRoot '.runtime'
 New-Item -ItemType Directory -Path $runtime -Force | Out-Null
 $statePath = Join-Path $runtime 'state.json'
+$compatibilityPath = Join-Path $runtime 'compatibility.json'
+$previousVersion = $null
+try {
+    if (Test-Path -LiteralPath $compatibilityPath) {
+        $previousVersion = (Get-Content -LiteralPath $compatibilityPath -Raw | ConvertFrom-Json).appVersion
+    } elseif (Test-Path -LiteralPath $statePath) {
+        $previousVersion = (Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json).appVersion
+    }
+} catch { }
+$currentVersion = "$($package.Version)"
+$versionChanged = $previousVersion -and $previousVersion -ne $currentVersion
 
 function Get-CodexProcesses {
     @(Get-CimInstance Win32_Process -Filter "Name='ChatGPT.exe'" | Where-Object {
@@ -78,7 +89,12 @@ if ($listeners.Count -gt 0) { Assert-ListenerBelongsToCodex $listeners }
 $codexProcesses = Get-CodexProcesses
 
 if ($listeners.Count -eq 0 -and $codexProcesses.Count -gt 0) {
-    Show-StartMessage 'Codex 正在运行，但没有开启调试端口。任务结束后正常退出 Codex，再打开“Codex 吸顶版”即可。当前任务不会被中断。'
+    $message = if ($versionChanged) {
+        "检测到 Codex 已从 $previousVersion 更新到 $currentVersion。更新后当前窗口没有吸顶连接；任务结束后完全退出 Codex，再打开【Codex 吸顶版】即可自动自检，无需重新安装。当前任务不会被中断。"
+    } else {
+        'Codex 正在运行，但没有开启吸顶连接。任务结束后完全退出 Codex，再打开【Codex 吸顶版】即可。当前任务不会被中断。'
+    }
+    Show-StartMessage $message
     exit 2
 }
 
@@ -125,8 +141,27 @@ if (-not (Test-Path -LiteralPath $readyFile)) {
     $details = if (Test-Path -LiteralPath $stderr) { Get-Content -LiteralPath $stderr -Raw } else { '' }
     throw "注入器未能连接 Codex。$details"
 }
-@{ injectorPid = $process.Id; port = $Port; appVersion = "$($package.Version)" } |
+$ready = Get-Content -LiteralPath $readyFile -Raw | ConvertFrom-Json
+if (-not $ready.probe.installed) {
+    throw '注入器已连接 Codex，但启动自检未确认吸顶脚本。'
+}
+$interfaceStatus = if ([int]$ready.probe.scrollers -gt 0 -and -not $ready.probe.unavailable) {
+    'verified'
+} else {
+    'waiting_for_conversation'
+}
+@{
+    appVersion = $currentVersion
+    overlayVersion = $ready.probe.version
+    interfaceStatus = $interfaceStatus
+    targetUrl = $ready.url
+    verifiedAt = (Get-Date).ToString('o')
+} | ConvertTo-Json | Set-Content -LiteralPath $compatibilityPath -Encoding utf8
+@{ injectorPid = $process.Id; port = $Port; appVersion = $currentVersion } |
     ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8
 Write-Host "吸顶功能已启动。注入器进程 ID：$($process.Id)。"
+if ($versionChanged) {
+    Show-StartMessage "检测到 Codex 更新到 $currentVersion，吸顶脚本已自动完成启动自检。"
+}
 Write-Host "查看诊断：node `"$injector`" --probe --port $Port"
 Write-Host "关闭吸顶：运行 Stop-CodexStickyPrompt.ps1"

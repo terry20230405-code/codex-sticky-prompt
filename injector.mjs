@@ -139,7 +139,7 @@ async function oneShot() {
     const client = await connectTarget(target);
     try {
       const result = await client.evaluate(mode === 'remove' ? removeExpression : probeExpression);
-      console.log(JSON.stringify({ mode, target: target.id, result }));
+      console.log(JSON.stringify({ mode, target: target.id, url: target.url, result }));
     } finally {
       client.close();
     }
@@ -178,8 +178,14 @@ async function watch() {
            await client.call('Page.enable');
            await client.call('Page.addScriptToEvaluateOnNewDocument', { source: installExpression });
            await client.evaluate(installExpression);
-           if (readyFile && !ready) {
-             await fs.writeFile(readyFile, JSON.stringify({ target: target.id, at: Date.now() }));
+           const pageUrl = new URL(target.url);
+           const isMainWindow = pageUrl.protocol === 'app:' && pageUrl.pathname === '/index.html' &&
+             !pageUrl.searchParams.has('initialRoute');
+           if (readyFile && !ready && isMainWindow) {
+             const probe = await client.evaluate(probeExpression);
+             await fs.writeFile(readyFile, JSON.stringify({
+               target: target.id, url: target.url, at: Date.now(), probe,
+             }));
              ready = true;
            }
            active.set(target.id, client);

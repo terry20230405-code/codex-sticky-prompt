@@ -27,8 +27,12 @@ test('injector registers reload hook and evaluates overlay on Codex target', asy
     ws.on('message', (data) => {
       const message = JSON.parse(String(data));
       methods.push(message.method);
+      const value = message.method === 'Runtime.evaluate' &&
+        message.params?.expression?.includes('userBubbles:') ? {
+          scrollers: 1, userBubbles: 2, installed: true, version: 'test', unavailable: false,
+        } : true;
       ws.send(JSON.stringify({ id: message.id, result: {
-        result: { type: 'boolean', value: true },
+        result: { type: typeof value, value },
       } }));
     });
   });
@@ -55,6 +59,9 @@ test('injector registers reload hook and evaluates overlay on Codex target', asy
     assert.ok(output.includes('Injected into Codex renderer'));
     const ready = JSON.parse(await fs.readFile(readyFile, 'utf8'));
     assert.equal(ready.target, 'codex-shell');
+    assert.equal(ready.url, 'app://-/index.html');
+    assert.equal(ready.probe.installed, true);
+    assert.equal(ready.probe.scrollers, 1);
   } finally {
     if (child.exitCode === null) {
       child.kill();
