@@ -118,6 +118,33 @@ test('places the toggle beside the chat toolbar action, not the sidebar action',
   }
 });
 
+test('keeps the toggle in the current app shell header structure', async () => {
+  const { window } = createFixture();
+  try {
+    await nextFrame();
+    const oldToolbar = window.document.querySelector('.ms-auto');
+    const currentHeader = window.document.createElement('div');
+    currentHeader.setAttribute('data-app-shell-header-toolbar', 'true');
+    currentHeader.innerHTML = `<div class="ms-auto">
+      <div class="contents"><div class="contents">
+        <button class="button-toolbar text-tertiary" aria-label="聊天操作">Menu</button>
+        <button class="button-toolbar text-tertiary" aria-label="切换摘要">Summary</button>
+      </div></div>
+    </div>`;
+    oldToolbar.replaceWith(currentHeader);
+    await nextFrame();
+
+    const toggle = window.document.querySelector('#codex-sticky-prompt-toggle');
+    const action = currentHeader.querySelector('button[aria-label="聊天操作"]');
+    assert.equal(toggle.parentElement, action.parentElement);
+    assert.equal(toggle.nextElementSibling, action);
+    assert.equal(toggle.closest('[data-app-shell-header-toolbar="true"]'), currentHeader);
+  } finally {
+    window.__codexStickyPrompt?.destroy();
+    window.close();
+  }
+});
+
 test('realigns a pinned prompt when the view moves without a scroll event', async () => {
   const { window, scroller, tops } = createFixture();
   try {

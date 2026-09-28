@@ -30,6 +30,7 @@ test('injector registers reload hook and evaluates overlay on Codex target', asy
       const value = message.method === 'Runtime.evaluate' &&
         message.params?.expression?.includes('userBubbles:') ? {
           scrollers: 1, userBubbles: 2, installed: true, version: 'test', unavailable: false,
+          toggleInstalled: true,
         } : true;
       ws.send(JSON.stringify({ id: message.id, result: {
         result: { type: typeof value, value },
@@ -62,6 +63,7 @@ test('injector registers reload hook and evaluates overlay on Codex target', asy
     assert.equal(ready.url, 'app://-/index.html');
     assert.equal(ready.probe.installed, true);
     assert.equal(ready.probe.scrollers, 1);
+    assert.equal(ready.probe.toggleInstalled, true);
   } finally {
     if (child.exitCode === null) {
       child.kill();

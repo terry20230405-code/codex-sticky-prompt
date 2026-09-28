@@ -194,10 +194,13 @@ $ready = Get-Content -LiteralPath $readyFile -Raw | ConvertFrom-Json
 if (-not $ready.probe.installed) {
     throw '注入器已连接 Codex，但启动自检未确认吸顶脚本。'
 }
-$interfaceStatus = if ([int]$ready.probe.scrollers -gt 0 -and -not $ready.probe.unavailable) {
+$hasConversation = [int]$ready.probe.scrollers -gt 0
+$interfaceStatus = if (-not $hasConversation) {
+    'waiting_for_conversation'
+} elseif (-not $ready.probe.unavailable -and $ready.probe.toggleInstalled) {
     'verified'
 } else {
-    'waiting_for_conversation'
+    'needs_adaptation'
 }
 @{
     appVersion = $currentVersion
@@ -211,6 +214,9 @@ $interfaceStatus = if ([int]$ready.probe.scrollers -gt 0 -and -not $ready.probe.
 Write-Host "吸顶功能已启动。注入器进程 ID：$($process.Id)。"
 if ($versionChanged) {
     Show-StartMessage "检测到 Codex 更新到 $currentVersion，吸顶脚本已自动完成启动自检。"
+}
+if ($interfaceStatus -eq 'needs_adaptation') {
+    Show-StartMessage '吸顶脚本已经连接，但当前聊天界面没有通过完整自检。请检查吸顶内容和标题栏开关。'
 }
 Write-Host "查看诊断：node `"$injector`" --probe --port $Port"
 Write-Host "关闭吸顶：运行 Stop-CodexStickyPrompt.ps1"

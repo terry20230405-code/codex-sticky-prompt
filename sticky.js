@@ -2,7 +2,7 @@
   'use strict';
 
   const GLOBAL_KEY = '__codexStickyPrompt';
-  const VERSION = '0.1.32';
+  const VERSION = '0.1.33';
   const STORAGE_KEY = 'codex-sticky-prompt-enabled';
   const SCROLLER_SELECTOR = '.thread-scroll-container';
   const UNIT_SELECTOR = '[data-content-search-unit-key]';
@@ -11,7 +11,8 @@
     '[aria-label="应用程序截图附件"], [aria-label="Appshot attachment"]';
   const FILE_PILL_SELECTOR = '[data-composer-attachment-pill]';
   const SUMMARY_TOGGLE_SELECTOR = 'button[aria-label="切换置顶摘要"], ' +
-    'button[aria-label="Toggle pinned summary"]';
+    'button[aria-label="Toggle pinned summary"], button[aria-label="切换摘要"], ' +
+    'button[aria-label="Toggle summary"]';
   const PIN_PX = 0.5;
   const RELEASE_PX = 8;
   const SWITCH_MS = 220;
@@ -395,7 +396,8 @@
 
   function ensureToggle() {
     const inChatToolbar = (candidate) => candidate?.matches('button.button-toolbar') &&
-      candidate.parentElement?.classList.contains('ms-auto');
+      (candidate.parentElement?.classList.contains('ms-auto') ||
+        candidate.closest('[data-app-shell-header-toolbar="true"]'));
     const action = (inChatToolbar(toolbarAction) && toolbarAction.isConnected ? toolbarAction : null) ??
       [...document.querySelectorAll('button.button-toolbar[aria-label="聊天操作"]')]
         .find(inChatToolbar) ??

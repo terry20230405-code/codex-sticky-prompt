@@ -22,7 +22,8 @@ const probeExpression = `({
   userBubbles: document.querySelectorAll('[data-user-message-bubble]').length,
   installed: Boolean(window.__codexStickyPrompt?.active),
   version: window.__codexStickyPrompt?.version ?? null,
-  unavailable: Boolean(window.__codexStickyPrompt?.unavailable)
+  unavailable: Boolean(window.__codexStickyPrompt?.unavailable),
+  toggleInstalled: Boolean(document.querySelector('#codex-sticky-prompt-toggle'))
 })`;
 
 function sleep(milliseconds) {
