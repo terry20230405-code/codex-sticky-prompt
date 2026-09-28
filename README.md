@@ -54,7 +54,7 @@ Microsoft Store 更新 Codex 后，官方程序有时会自行重启，并且不
 
 ## 实现与限制
 
-- 通过本地 Chromium DevTools Protocol 注入 `sticky.js`，不修改 Codex 安装包或会话文件。
+- 通过 Windows 应用激活接口启动 Codex，保留 Microsoft Store 应用身份并传入本机调试参数；随后通过本地 Chromium DevTools Protocol 注入 `sticky.js`，不修改 Codex 安装包或会话文件。
 - 安装脚本通过 Windows 包名 `OpenAI.Codex` 查找当前最新安装版本，不依赖固定安装路径或固定版本号。
 - 只连接 `127.0.0.1` 上由当前 Codex 安装占用的调试端口。
 - 使用 Codex 当前版本的 `.thread-scroll-container`、`data-content-search-unit-key` 和 `data-user-message-bubble` 标记。Codex 更新后若标记变化，需要适配。

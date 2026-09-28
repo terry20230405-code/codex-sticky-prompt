@@ -18,10 +18,60 @@ trap {
     Show-StartMessage "启动吸顶功能失败：$($_.Exception.Message)"
     exit 1
 }
+
+function Start-PackagedCodex {
+    param(
+        [Parameter(Mandatory = $true)][string]$AppUserModelId,
+        [Parameter(Mandatory = $true)][string]$Arguments
+    )
+    if (-not ('CodexStickyPrompt.PackageActivator' -as [type])) {
+        $source = @'
+using System;
+using System.Runtime.InteropServices;
+
+namespace CodexStickyPrompt {
+    [ComImport]
+    [Guid("2E941141-7F97-4756-BA1D-9DECDE894A3D")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    interface IApplicationActivationManager {
+        [PreserveSig]
+        int ActivateApplication(
+            [MarshalAs(UnmanagedType.LPWStr)] string appUserModelId,
+            [MarshalAs(UnmanagedType.LPWStr)] string arguments,
+            uint options,
+            out uint processId);
+    }
+
+    [ComImport]
+    [Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C")]
+    class ApplicationActivationManager { }
+
+    public static class PackageActivator {
+        public static uint Activate(string appUserModelId, string arguments) {
+            var manager = (IApplicationActivationManager)new ApplicationActivationManager();
+            uint processId;
+            int result = manager.ActivateApplication(appUserModelId, arguments, 0, out processId);
+            Marshal.ThrowExceptionForHR(result);
+            return processId;
+        }
+    }
+}
+'@
+        Add-Type -TypeDefinition $source -Language CSharp
+    }
+    return [CodexStickyPrompt.PackageActivator]::Activate($AppUserModelId, $Arguments)
+}
+
 $package = Get-AppxPackage -Name 'OpenAI.Codex' | Sort-Object Version -Descending | Select-Object -First 1
 if (-not $package) { throw '未找到通过 Windows 安装的 Codex 桌面端。' }
 $appExe = Join-Path $package.InstallLocation 'app\ChatGPT.exe'
 if (-not (Test-Path -LiteralPath $appExe)) { throw "未找到 Codex 可执行文件：$appExe" }
+$manifest = Get-AppxPackageManifest -Package $package
+$application = @($manifest.Package.Applications.Application) | Where-Object {
+    ("$($_.Executable)" -replace '\\', '/') -ieq 'app/ChatGPT.exe'
+} | Select-Object -First 1
+if (-not $application) { throw '未在 Codex 应用包中找到桌面端启动入口。' }
+$appUserModelId = "$($package.PackageFamilyName)!$($application.Id)"
 $node = if ($NodePath) { $NodePath } else { (Get-Command node -ErrorAction SilentlyContinue).Source }
 if (-not $node -or -not (Test-Path -LiteralPath $node)) {
     throw '未找到 Node.js。请安装 22 或更新版本，并重新创建快捷方式。'
@@ -100,10 +150,9 @@ if ($listeners.Count -eq 0 -and $codexProcesses.Count -gt 0) {
 
 if ($listeners.Count -eq 0) {
     Write-Host "正在启动 Codex $($package.Version)，调试端口仅监听 127.0.0.1:$Port ..."
-    Start-Process -FilePath $appExe -ArgumentList @(
-        '--remote-debugging-address=127.0.0.1',
-        "--remote-debugging-port=$Port"
-    ) | Out-Null
+    $launchArguments = "--remote-debugging-address=127.0.0.1 --remote-debugging-port=$Port"
+    $launchedProcessId = Start-PackagedCodex -AppUserModelId $appUserModelId -Arguments $launchArguments
+    Write-Host "已通过 Windows 应用身份启动 Codex，进程 ID：$launchedProcessId。"
     $deadline = (Get-Date).AddSeconds(35)
     do {
         Start-Sleep -Milliseconds 500
